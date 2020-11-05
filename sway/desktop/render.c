@@ -813,11 +813,6 @@ static void render_border_textures(struct sway_output *output,
 	render_border_texture(output, damage, box, src_box, texture, alpha);
 }
 
-struct output_and_damage {
-	struct sway_output *output;
-	pixman_region32_t *damage;
-};
-
 /**
  * Determines which border texture class to render for a given container.
  */
@@ -846,9 +841,9 @@ struct border_textures *get_border_textures_for_container(
  * Render all of the border textures for a container.
  */
 static void render_border_textures_for_container(struct sway_container *con,
-		void *data) {
-	if (container_is_floating(con)) {
-		goto bypass_border_checks;
+		struct sway_output *output, pixman_region32_t *damage) {
+	if (!con->workspace) {
+		return;
 	}
 
 	struct sway_container *temp = con;
@@ -866,29 +861,24 @@ static void render_border_textures_for_container(struct sway_container *con,
 		return;
 	}
 
-
-	struct border_textures *textures;
-	struct sway_container_state *state;
-	struct wlr_box box;
-	struct output_and_damage *oad;
-bypass_border_checks:
-	state = &con->current;
-	box.x = state->x;
-	box.y = state->y;
-	box.width = state->width;
-	box.height = state->height;
-	oad = (struct output_and_damage *) data;
-	textures = get_border_textures_for_container(con);
-	render_border_textures(oad->output, oad->damage, &box, textures->texture, con->alpha);
+	struct border_textures *textures = get_border_textures_for_container(con);;
+	struct sway_container_state *state = &con->current;
+	struct wlr_box box = {
+		.x = state->x,
+		.y = state->y,
+		.width = state->width,
+		.height = state->height,
+	};
+	render_border_textures(output, damage, &box, textures->texture, con->alpha);
 }
 
 /**
- * Render all of the border textures for tiling containers within a workspace
+ * Render the border textures for the overall layout of the container. A tabbed
+ * or stacked workspace layout means that all containers within the workspace
+ * are part of a single container, so a single border gets drawn.
  */
 static void render_border_textures_for_workspace(struct sway_output *output,
 		pixman_region32_t *damage, struct sway_workspace *ws) {
-	// If the workspace layout is tabbed or stacked, all containers within are
-	// part of a parent container so only one border needs to be drawn.
 	if (ws->layout == L_TABBED || ws->layout == L_STACKED) {
 		struct wlr_box box;
 		workspace_get_box(ws, &box);
@@ -896,15 +886,7 @@ static void render_border_textures_for_workspace(struct sway_output *output,
 		struct sway_container *con = ws->tiling->items[0];
 		struct border_textures *textures = get_border_textures_for_container(con);
 		render_border_textures(output, damage, &box, textures->texture, con->alpha);
-		return;
 	}
-
-	struct output_and_damage data = {
-		.output = output,
-		.damage = damage,
-	};
-	workspace_for_each_tiling_container(ws,
-			render_border_textures_for_container, &data);
 }
 
 static void render_container(struct sway_output *output,
@@ -958,6 +940,8 @@ static void render_containers_linear(struct sway_output *output,
 			render_container(output, damage, child,
 					parent->focused || child->current.focused);
 		}
+
+		render_border_textures_for_container(child, output, damage);
 	}
 }
 
@@ -1015,6 +999,8 @@ static void render_containers_tabbed(struct sway_output *output,
 		if (child == current) {
 			current_colors = colors;
 		}
+
+		render_border_textures_for_container(child, output, damage);
 	}
 
 	// Render surface and left/right/bottom borders
@@ -1075,6 +1061,8 @@ static void render_containers_stacked(struct sway_output *output,
 		if (child == current) {
 			current_colors = colors;
 		}
+
+		render_border_textures_for_container(child, output, damage);
 	}
 
 	// Render surface and left/right/bottom borders
@@ -1176,15 +1164,11 @@ static void render_floating_container(struct sway_output *soutput,
 			render_top_border(soutput, damage, con, colors);
 		}
 		render_view(soutput, damage, con, colors);
-
-		struct output_and_damage data = {
-					.output = soutput,
-					.damage = damage,
-				};
-		render_border_textures_for_container(con, &data);
 	} else {
 		render_container(soutput, damage, con, con->current.focused);
 	}
+
+	render_border_textures_for_container(con, soutput, damage);
 }
 
 static void render_floating(struct sway_output *soutput,
@@ -1202,11 +1186,6 @@ static void render_floating(struct sway_output *soutput,
 					continue;
 				}
 				render_floating_container(soutput, damage, floater);
-				struct output_and_damage data = {
-					.output = soutput,
-					.damage = damage,
-				};
-				render_border_textures_for_container(floater, &data);
 			}
 		}
 	}
