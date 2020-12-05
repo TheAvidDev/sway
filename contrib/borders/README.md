@@ -12,5 +12,8 @@ Feel free to add your own and make a PR, as long as they aren't _too_ similar to
 ## Shadows
 ![](https://raw.githubusercontent.com/TheAvidDev/sway-borders/master/contrib/borders/shadows.png)
 
+## Shadows (thin)
+![](https://raw.githubusercontent.com/TheAvidDev/sway-borders/master/contrib/borders/shadows_thin.png)
+
 ## Testing
 ![](https://raw.githubusercontent.com/TheAvidDev/sway-borders/master/contrib/borders/testing.png)
