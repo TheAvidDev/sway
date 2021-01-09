@@ -15,6 +15,7 @@
 #include "config.h"
 #include "list.h"
 #include "log.h"
+#include "sway/config.h"
 #include "sway/desktop.h"
 #include "sway/input/cursor.h"
 #include "sway/input/input-manager.h"
@@ -46,11 +47,26 @@ static void seat_device_destroy(struct sway_seat_device *seat_device) {
 	free(seat_device);
 }
 
+static void seat_node_destroy(struct sway_seat_node *seat_node) {
+	wl_list_remove(&seat_node->destroy.link);
+	wl_list_remove(&seat_node->link);
+	free(seat_node);
+}
+
 void seat_destroy(struct sway_seat *seat) {
+	if (seat == config->handler_context.seat) {
+		config->handler_context.seat = input_manager_get_default_seat();
+	}
 	struct sway_seat_device *seat_device, *next;
 	wl_list_for_each_safe(seat_device, next, &seat->devices, link) {
 		seat_device_destroy(seat_device);
 	}
+	struct sway_seat_node *seat_node, *next_seat_node;
+	wl_list_for_each_safe(seat_node, next_seat_node, &seat->focus_stack,
+			link) {
+		seat_node_destroy(seat_node);
+	}
+	sway_input_method_relay_finish(&seat->im_relay);
 	sway_cursor_destroy(seat->cursor);
 	wl_list_remove(&seat->new_node.link);
 	wl_list_remove(&seat->request_start_drag.link);
@@ -65,12 +81,6 @@ void seat_destroy(struct sway_seat *seat) {
 	list_free(seat->deferred_bindings);
 	free(seat->prev_workspace_name);
 	free(seat);
-}
-
-static void seat_node_destroy(struct sway_seat_node *seat_node) {
-	wl_list_remove(&seat_node->destroy.link);
-	wl_list_remove(&seat_node->link);
-	free(seat_node);
 }
 
 void seat_idle_notify_activity(struct sway_seat *seat,

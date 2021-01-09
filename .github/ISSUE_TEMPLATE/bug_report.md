@@ -6,7 +6,15 @@ labels: 'bug'
 ---
 
 ### Please read the following before submitting:
+<<<<<<< HEAD
 - Make sure the issue is with one of the additional features of sway-borders or one which does not occur in sway upstream.
+=======
+- Please do NOT submit bug reports for questions. Ask questions on IRC at #sway on irc.freenode.net.
+- Proprietary graphics drivers, including nvidia, are not supported. Please use the open source equivalents, such as nouveau, if you would like to use Sway.
+- Problems with the Wayland version of Firefox are likely to be Firefox bugs. Start by submitting your issue to the Firefox Bugzilla and come back here only after they confirm otherwise.
+- Please do NOT submit issues for information from the github wiki. The github wiki is community maintained and therefore may contain outdated information, scripts that don't work or osbolete workarounds.
+  If you fix a script or find outdated information, don't hesitate to adjust the wiki page.
+>>>>>>> upstream/master
 
 ### Please fill out the following:
 - **Sway Version:**

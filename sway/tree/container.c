@@ -805,9 +805,10 @@ void container_set_floating(struct sway_container *container, bool enable) {
 			container->width = reference->width;
 			container->height = reference->height;
 		} else {
-			workspace_add_tiling(workspace, container);
-			container->width = workspace->width;
-			container->height = workspace->height;
+			struct sway_container *other =
+				workspace_add_tiling(workspace, container);
+			other->width = workspace->width;
+			other->height = workspace->height;
 		}
 		if (container->view) {
 			view_set_tiled(container->view, true);
@@ -1002,6 +1003,7 @@ static void container_fullscreen_workspace(struct sway_container *con) {
 	bool enable = true;
 	set_fullscreen_iterator(con, &enable);
 	container_for_each_child(con, set_fullscreen_iterator, &enable);
+	con->fullscreen_mode = FULLSCREEN_WORKSPACE;
 
 	con->saved_x = con->x;
 	con->saved_y = con->y;
@@ -1025,7 +1027,6 @@ static void container_fullscreen_workspace(struct sway_container *con) {
 		}
 	}
 
-	con->fullscreen_mode = FULLSCREEN_WORKSPACE;
 	container_end_mouse_operation(con);
 	ipc_event_window(con, "fullscreen_mode");
 }
@@ -1364,16 +1365,6 @@ void container_detach(struct sway_container *child) {
 		container_update_representation(old_parent);
 		node_set_dirty(&old_parent->node);
 	} else if (old_workspace) {
-		// We may have removed the last tiling child from the workspace. If the
-		// workspace layout was e.g. tabbed, then at this point it may be just
-		// H[]. So, reset it to the default (e.g. T[]) for next time.
-		// But if we are evacuating a workspace with only sticky floating
-		// containers, the workspace will already be detached from the output.
-		if (old_workspace->output && !old_workspace->tiling->length) {
-			old_workspace->layout =
-				output_get_default_layout(old_workspace->output);
-		}
-
 		workspace_update_representation(old_workspace);
 		node_set_dirty(&old_workspace->node);
 	}
@@ -1419,6 +1410,28 @@ void container_replace(struct sway_container *container,
 
 struct sway_container *container_split(struct sway_container *child,
 		enum sway_container_layout layout) {
+	// i3 doesn't split singleton H/V containers
+	// https://github.com/i3/i3/blob/3cd1c45eba6de073bc4300eebb4e1cc1a0c4479a/src/tree.c#L354
+	if (child->parent || child->workspace) {
+		list_t *siblings = container_get_siblings(child);
+		if (siblings->length == 1) {
+			enum sway_container_layout current = container_parent_layout(child);
+			if (container_is_floating(child)) {
+				current = L_NONE;
+			}
+			if (current == L_HORIZ || current == L_VERT) {
+				if (child->parent) {
+					child->parent->layout = layout;
+					container_update_representation(child->parent);
+				} else {
+					child->workspace->layout = layout;
+					workspace_update_representation(child->workspace);
+				}
+				return child;
+			}
+		}
+	}
+
 	struct sway_seat *seat = input_manager_get_default_seat();
 	bool set_focus = (seat_get_focus(seat) == &child->node);
 
@@ -1625,4 +1638,66 @@ bool container_is_sticky(struct sway_container *con) {
 
 bool container_is_sticky_or_child(struct sway_container *con) {
 	return container_is_sticky(container_toplevel_ancestor(con));
+}
+
+static bool is_parallel(enum sway_container_layout first,
+		enum sway_container_layout second) {
+	switch (first) {
+	case L_TABBED:
+	case L_HORIZ:
+		return second == L_TABBED || second == L_HORIZ;
+	case L_STACKED:
+	case L_VERT:
+		return second == L_STACKED || second == L_VERT;
+	default:
+		return false;
+	}
+}
+
+static bool container_is_squashable(struct sway_container *con,
+		struct sway_container *child) {
+	enum sway_container_layout gp_layout = container_parent_layout(con);
+	return (con->layout == L_HORIZ || con->layout == L_VERT) &&
+		(child->layout == L_HORIZ || child->layout == L_VERT) &&
+		!is_parallel(con->layout, child->layout) &&
+		is_parallel(gp_layout, child->layout);
+}
+
+static void container_squash_children(struct sway_container *con) {
+	for (int i = 0; i < con->children->length; i++) {
+		struct sway_container *child = con->children->items[i];
+		i += container_squash(child);
+	}
+}
+
+int container_squash(struct sway_container *con) {
+	if (!con->children) {
+		return 0;
+	}
+	if (con->children->length != 1) {
+		container_squash_children(con);
+		return 0;
+	}
+	struct sway_container *child = con->children->items[0];
+	int idx = container_sibling_index(con);
+	int change = 0;
+	if (container_is_squashable(con, child)) {
+		// con and child are a redundant H/V pair. Destroy them.
+		while (child->children->length) {
+			struct sway_container *current = child->children->items[0];
+			container_detach(current);
+			if (con->parent) {
+				container_insert_child(con->parent, current, idx);
+			} else {
+				workspace_insert_tiling_direct(con->workspace, current, idx);
+			}
+			change++;
+		}
+		// This will also destroy con because child was its only child
+		container_reap_empty(child);
+		change--;
+	} else {
+		container_squash_children(con);
+	}
+	return change;
 }
