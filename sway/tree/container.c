@@ -531,6 +531,10 @@ static void update_title_texture(struct sway_container *con,
 	cairo_surface_destroy(dummy_surface);
 	cairo_destroy(c);
 
+	if (width == 0 || height == 0) {
+		return;
+	}
+
 	cairo_surface_t *surface = cairo_image_surface_create(
 			CAIRO_FORMAT_ARGB32, width, height);
 	cairo_t *cairo = cairo_create(surface);
@@ -550,7 +554,7 @@ static void update_title_texture(struct sway_container *con,
 
 	cairo_surface_flush(surface);
 	unsigned char *data = cairo_image_surface_get_data(surface);
-	int stride = cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, width);
+	int stride = cairo_image_surface_get_stride(surface);
 	struct wlr_renderer *renderer = wlr_backend_get_renderer(
 			output->wlr_output->backend);
 	*texture = wlr_texture_from_pixels(
@@ -1048,16 +1052,15 @@ void container_end_mouse_operation(struct sway_container *container) {
 	}
 }
 
-static void set_fullscreen_iterator(struct sway_container *con, void *data) {
+static void set_fullscreen(struct sway_container *con, bool enable) {
 	if (!con->view) {
 		return;
 	}
 	if (con->view->impl->set_fullscreen) {
-		bool *enable = data;
-		con->view->impl->set_fullscreen(con->view, *enable);
+		con->view->impl->set_fullscreen(con->view, enable);
 		if (con->view->foreign_toplevel) {
 			wlr_foreign_toplevel_handle_v1_set_fullscreen(
-				con->view->foreign_toplevel, *enable);
+				con->view->foreign_toplevel, enable);
 		}
 	}
 }
@@ -1067,9 +1070,7 @@ static void container_fullscreen_workspace(struct sway_container *con) {
 				"Expected a non-fullscreen container")) {
 		return;
 	}
-	bool enable = true;
-	set_fullscreen_iterator(con, &enable);
-	container_for_each_child(con, set_fullscreen_iterator, &enable);
+	set_fullscreen(con, true);
 	con->pending.fullscreen_mode = FULLSCREEN_WORKSPACE;
 
 	con->saved_x = con->pending.x;
@@ -1103,9 +1104,7 @@ static void container_fullscreen_global(struct sway_container *con) {
 				"Expected a non-fullscreen container")) {
 		return;
 	}
-	bool enable = true;
-	set_fullscreen_iterator(con, &enable);
-	container_for_each_child(con, set_fullscreen_iterator, &enable);
+	set_fullscreen(con, true);
 
 	root->fullscreen_global = con;
 	con->saved_x = con->pending.x;
@@ -1131,9 +1130,7 @@ void container_fullscreen_disable(struct sway_container *con) {
 				"Expected a fullscreen container")) {
 		return;
 	}
-	bool enable = false;
-	set_fullscreen_iterator(con, &enable);
-	container_for_each_child(con, set_fullscreen_iterator, &enable);
+	set_fullscreen(con, false);
 
 	if (container_is_floating(con)) {
 		con->pending.x = con->saved_x;
@@ -1397,10 +1394,6 @@ void container_add_child(struct sway_container *parent,
 	child->pending.parent = parent;
 	child->pending.workspace = parent->pending.workspace;
 	container_for_each_child(child, set_workspace, NULL);
-	bool fullscreen = child->pending.fullscreen_mode != FULLSCREEN_NONE ||
-		parent->pending.fullscreen_mode != FULLSCREEN_NONE;
-	set_fullscreen_iterator(child, &fullscreen);
-	container_for_each_child(child, set_fullscreen_iterator, &fullscreen);
 	container_handle_fullscreen_reparent(child);
 	container_update_representation(parent);
 	node_set_dirty(&child->node);
@@ -1639,6 +1632,10 @@ static void update_marks_texture(struct sway_container *con,
 			"%s", buffer);
 	cairo_destroy(c);
 
+	if (width == 0 || height == 0) {
+		return;
+	}
+
 	cairo_surface_t *surface = cairo_image_surface_create(
 			CAIRO_FORMAT_ARGB32, width, height);
 	cairo_t *cairo = cairo_create(surface);
@@ -1655,7 +1652,7 @@ static void update_marks_texture(struct sway_container *con,
 
 	cairo_surface_flush(surface);
 	unsigned char *data = cairo_image_surface_get_data(surface);
-	int stride = cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, width);
+	int stride = cairo_image_surface_get_stride(surface);
 	struct wlr_renderer *renderer = wlr_backend_get_renderer(
 			output->wlr_output->backend);
 	*texture = wlr_texture_from_pixels(
