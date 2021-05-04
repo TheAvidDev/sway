@@ -2,9 +2,6 @@
 
 sway-borders is a fork of [Sway](https://swaywm.org), an [i3](https://i3wm.org/)-compatible [Wayland](http://wayland.freedesktop.org/) compositor. It introduces some new features like more customizable borders, but is otherwise kept up to date with [sway](https://github.com/swaywm/sway).
 
-Please refer to the [Sway GitHub](https://github.com/swaywm/sway/) for docs and related material which isn't related to the new features below.
-
-## Installation
 The following package distributions exist. If you package sway-borders for another distribution, feel free to PR its entry here.
 |Distribution|Name|Maintainer|
 |---|---|---|
@@ -74,3 +71,4 @@ While the border images allow for rounded borders to be added on the _outside_ o
 It would be nice to add bluring of semi-transparent windows since it's hard to use them with more complex backgrounds. This has quite a few nuances and may even require a custom wlroots build, we'll see.
 
 See: [sway#4356](https://github.com/swaywm/sway/issues/4356)
+
