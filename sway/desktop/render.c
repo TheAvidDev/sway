@@ -748,7 +748,10 @@ static void render_border_textures(struct sway_output *output,
 	struct wlr_box box;
 	struct wlr_fbox src_box;
 	int tw, th;
-	wlr_texture_get_size(texture, &tw, &th);
+	struct wlr_box texture_box = {
+		tw = texture->width,
+		th = texture->height,
+	};
 
 	// Top left corner
 	src_box.x = 0;
