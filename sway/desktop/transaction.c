@@ -235,8 +235,8 @@ static void apply_container_state(struct sway_container *container,
 	struct wlr_texture *texture = config->border_textures.focused.texture;
 	if (texture) {
 		struct wlr_box texture_box = {
-			w = texture->width,
-			h = texture->height,
+			tw = texture->width,
+			th = texture->height,
 		};
 	}
 
